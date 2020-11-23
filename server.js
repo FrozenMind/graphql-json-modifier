@@ -1,86 +1,85 @@
-let express = require('express');
+let express = require('express')
 let {
   graphqlHTTP
-} = require('express-graphql');
+} = require('express-graphql')
 let {
   buildSchema
-} = require('graphql');
-let graphqlTools = require('graphql-tools');
+} = require('graphql')
+let graphqlTools = require('graphql-tools')
 
-let fs = require('fs');
+let fs = require('fs')
 
-let champions = JSON.parse(fs.readFileSync('data/champions.json'))
+let countries = JSON.parse(fs.readFileSync('data/countries.json'))
 
 // Construct a schema, using GraphQL schema language
 let schema = `
   type Query {
-    getChampionByName(name: String): ChampionOrNotFound
-    getChampionsByTag(tag: String): ChampionArrOrNotFound
-    getChampionsByStatGte(name: String, value: Float): ChampionArrOrNotFound
+    countries(first: Int!, offset: Int = 0): [Country]
+    country(name: String): CountryOrError
   }
 
-  union ChampionOrNotFound = Champion | NotFoundError
-  union ChampionArrOrNotFound = Champions | NotFoundError
-
-  type Champion {
-    id: String
-    key: String
-    name: String
-    title: String
-    tags: [String]
-    stats: Stats
-    icon: String
-    sprite: Sprite
-    description: String
+  type Mutation {
+    createCountry(country: CountryInput): Country
   }
 
-  type Champions {
-    champions: [Champion]
+  union CountryOrError = Country | Error
+
+  type Countries {
+    countries: [Country]
   }
 
-  type Sprite {
-    url: String
-    x: Int
-    y: Int
+  type Country {
+    id: Int
+    name: String,
+    nativeName: String,
+    topLevelDomain: [String],
+    alpha2Code: String,
+    numericCode: String,
+    alpha3Code: String,
+    currencies: [String],
+    callingCodes: [String],
+    capital: String,
+    altSpellings: [String],
+    relevance: String,
+    region: String,
+    subregion: String,
+    language: [String],
+    languages: [String],
+    translations: Translation,
+    population: Int,
+    latlng: [Float],
+    demonym: String,
+    borders: [String],
+    area: Int,
+    gini: Float,
+    timezones: [String]
   }
 
-  type Stats {
-    hp: Float
-    hpperlevel: Float
-    mp: Float
-    mpperlevel: Float
-    movespeed: Float
-    armor: Float
-    armorperlevel: Float
-    spellblock: Float
-    spellblockperlevel: Float
-    attackrange: Float
-    hpregen: Float
-    hpregenperlevel: Float
-    mpregen: Float
-    mpregenperlevel: Float
-    crit: Float
-    critperlevel: Float
-    attackdamage: Float
-    attackdamageperlevel: Float
-    attackspeedperlevel: Float
-    attackspeed: Float
+  input CountryInput {
+    name: String,
+    capital: String
   }
 
-  type NotFoundError {
+  type Translation {
+    de: String,
+    es: String,
+    fr: String,
+    it: String,
+    ja: String,
+    nl: String,
+    hr: String
+  }
+
+  type Error {
+    status: Int,
     message: String
   }
 `
 
 let resolvers = {
-  ChampionOrNotFound: {
+  CountryOrError: {
     __resolveType: (obj, context, info) => {
-      return obj.message ? "NotFoundError" : "Champion"
-    }
-  },
-  ChampionArrOrNotFound: {
-    __resolveType: (obj, context, info) => {
-      return obj.message ? "NotFoundError" : "Champions"
+      return obj.message ? "Error" : "Country"
     }
   }
 }
@@ -88,97 +87,55 @@ let resolvers = {
 // The root provides a resolver function for each API endpoint
 let root = {
   /*
-    {
-      getChampionByName(name:"Ahri") {
-        __typename
-        ... on Champion {
-          name,
-          stats {
-            hp,
-            armor,
-            attackdamage,
-            attackspeedperlevel
-          }
-        },
-        ... on NotFoundError {
-          message
-        }
+  {
+    countries(first: 10, offset: 80) {
+      name,
+      region,
+      translations {
+        de
       }
-    }
-   */
-  getChampionByName: (param) => {
-    console.log('getChampionByName', param);
-    let champ = champions.find(c => c.name.toLowerCase() === param.name.toLowerCase())
-    if (champ) {
-      return champ
-    }
-    return {
-      message: `Champion ${param.name} not found`
-    }
-  },
-  /*
-    {
-      getChampionsByTag(tag:"Tank") {
-        __typename
-        ... on Champions {
-          champions {
-            name,
-        		title,
-            tags
-          }
-        }
-        ... on NotFoundError {
-          message
-        }
-      }
-    }
-   */
-  getChampionsByTag: (param) => {
-    console.log('getChampionsByTag', param);
-    let foundChampions = champions.filter(c => c.tags.indexOf(param.tag) >= 0)
-    if (foundChampions.length > 0) {
-      return {
-        champions: foundChampions
-      }
-    }
-    return {
-      message: `No champion found for tag ${param.tag}`
-    }
-  },
-  /*
-    {
-      getChampionsByStatGte(name:"hp", value:650) {
-        __typename
-        ... on Champions {
-          champions {
-            name,
-            title,
-            stats {
-              hp
-            }
-          }
-        }
-        ... on NotFoundError {
-          message
-        }
-      }
-    }
-   */
-  getChampionsByStatGte: (param) => {
-    console.log('getChampionsByStatGte', param)
-    let foundChampions = champions.filter(c => c.stats[param.name] >= param.value)
-    if (foundChampions.length > 0) {
-      return {
-        champions: foundChampions
-      }
-    }
-    return {
-      message: `No champions found with ${param.name} >= ${param.value}`
     }
   }
-};
+  */
+  countries: (param) => {
+    console.log('countriesPaginated', param)
+    return countries.slice(param.offset, param.offset + param.first);
+  },
+  /*
+  {
+    country(name:"Germany") {
+      __typename
+      ... on Country {
+        name,
+        region,
+        language
+      },
+      ... on Error {
+        message
+      }
+    }
+  }
+   */
+  country: (param) => {
+    console.log('country', param)
+    let c = countries.find(c => c.name.toLowerCase() === param.name.toLowerCase())
+    if (c) {
+      return c
+    }
+    return {
+      status: 404,
+      message: `Country ${param.name} not found`
+    }
+  },
+  createCountry: (param) => {
+    console.log('createCountry', param)
+    countries.push(param.country)
+    param.country.id = 4732832
+    return param.country
+  }
+}
 
-let app = express();
+let app = express()
 app.use('/graphql', graphqlHTTP({
   schema: graphqlTools.makeExecutableSchema({
     typeDefs: schema,
@@ -186,5 +143,9 @@ app.use('/graphql', graphqlHTTP({
   }),
   rootValue: root,
   graphiql: true,
-}));
-app.listen(4000, () => console.log('Express GraphQL Server Now Running On localhost:4000/graphql'));
+}))
+app.get('/countries', (req, res) => {
+  console.log('HTTP countries');
+  res.json(countries.slice(req.query.offset, req.query.offset + req.query.first))
+})
+app.listen(4000, () => console.log('Express GraphQL Server Now Running On localhost:4000/graphql'))
